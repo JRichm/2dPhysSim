@@ -237,7 +237,15 @@ function ballPenetrationResolution(b1, b2) {
     b2.pos = b2.pos.add(ballPenetrationResolution.multiply(-b2.inverseMass));
 }
 
-function collisionResolution(b1, b2) {
+function wallCollisionResolution(b, w) {
+    let normal = b.pos.subtract(closestPointBallWall(b, w)).unitVector();
+    let separationVelocity = Vector.dot(b.vel, normal);
+    let newSeparationVelocity = -separationVelocity * b.elasticity;
+    let velocitySeparationDifference = separationVelocity - newSeparationVelocity;
+    b.vel = b.vel.add(normal.multiply(-velocitySeparationDifference));
+}
+
+function ballCollisionResolution(b1, b2) {
     let collisionNormal = b1.pos.subtract(b2.pos).unitVector();
     let relativeVelocity = b1.vel.subtract(b2.vel);
     let separationVelocity = Vector.dot(relativeVelocity, collisionNormal);
@@ -265,9 +273,17 @@ function mainLoop() {
         for (let i = index + 1; i < balls.length; i++) {
             if (detectBallCollision(balls[index], balls[i])) {
                 ballPenetrationResolution(balls[index], balls[i]);
-                collisionResolution(balls[index], balls[i]);
+                ballCollisionResolution(balls[index], balls[i]);
             }
         }
+
+        walls.forEach(wall => {
+            if (detectWallCollision(balls[index], wall)) {
+                wallPenetrationResolution(balls[index], wall);
+                wallCollisionResolution(balls[index], wall);
+            }
+        })
+
         ball.displayNote();
         ball.moveBall();        
     });
@@ -275,10 +291,6 @@ function mainLoop() {
     walls.forEach(wall => {
         wall.drawWall();
     })
-
-    if (detectWallCollision(ball, wall)) {
-        wallPenetrationResolution(ball, wall);
-    }
     
     // distanceVector = Ball2.pos.subtract(Ball1.pos)
     // ctx.fillText("Distance: " + round(distanceVector.magnitude(), 4), 506, 330)
@@ -290,8 +302,10 @@ function mainLoop() {
 //     newBall.elasticity = randInt(0, 10) / 10;
 // }
 
-let ball = new Ball(300, 100, 40, 1);
-let wall = new Wall(new Vector(200, 200), new Vector(400, 300))
+let ball1 = new Ball(300, 100, 40, 1);
+let ball2 = new Ball(200, 150, 30, 2)
+let wall1 = new Wall(new Vector(200, 200), new Vector(400, 300))
+let wall2 = new Wall(new Vector(350, 450), new Vector(450, 300))
 
 balls[0].player = true;
 
