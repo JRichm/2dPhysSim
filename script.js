@@ -2,14 +2,14 @@ const canvas = document.getElementById("canvas");
 const ctx = canvas.getContext('2d');
 
 const balls = [];
+const walls = [];
 
 let movingLeft = false;
 let movingUp = false;
 let movingRight = false;
 let movingDown = false;
 
-let friction = 0.1;
-
+let friction = 0.05;
 
 class Vector {
     constructor(x, y) {
@@ -26,7 +26,7 @@ class Vector {
     }
 
     multiply(n) {
-        return new Vector(this.x * n, this.y * n)
+        return new Vector(this.x * n, this.y * n);
     }
 
     normal() {
@@ -35,9 +35,9 @@ class Vector {
 
     unitVector() {
         if (this.magnitude() === 0) {
-            return new Vector(0, 0)
+            return new Vector(0, 0);
         } else {
-            return new Vector(this.x / this.magnitude(), this.y / this.magnitude())
+            return new Vector(this.x / this.magnitude(), this.y / this.magnitude());
         }
     }
 
@@ -46,7 +46,7 @@ class Vector {
     }
 
     static dot(v1, v2) {
-        return v1.x * v2.x + v1.y * v2.y
+        return v1.x * v2.x + v1.y * v2.y;
     }
 
     drawVector(startX, startY, n, color) {
@@ -59,9 +59,16 @@ class Vector {
 }
 
 class Ball {
-    constructor(posX, posY, radius) {
+    constructor(posX, posY, radius, mass) {
         this.pos = new Vector(posX, posY)
         this.radius = radius;
+        this.mass = mass;
+        if (this.mass === 0) {
+            this.inverseMass = 0;
+        } else {
+            this.inverseMass = 1 / this.mass
+        }
+        this.elasticity = 1;
         this.vel = new Vector(0, 0)
         this.acc = new Vector(0, 0)
         this.acceleration = 1;
@@ -78,22 +85,34 @@ class Ball {
         ctx.fill();    
     }
 
-    displayVelAcc() {
-        this.vel.drawVector(550, 400, 10, "green");
-        this.acc.unitVector().drawVector(550, 400, 50, "blue");
-        this.acc.normal().drawVector(550, 400, 50, "red");
-
-        ctx.beginPath();
-        ctx.arc(550, 400, 50, 0, 2 * Math.PI);
-        ctx.strokeStyle = "black";
-        ctx.stroke();
+    displayNote() {
+        this.vel.drawVector(this.pos.x, this.pos.y, 10, "green");
+        ctx.fillStyle = "black";
+        ctx.fillText("m = " + this.mass, this.pos.x - 10, this.pos.y - 5);
+        ctx.fillText("e = " + this.elasticity, this.pos.x - 10, this.pos.y + 5);
     }
 
     moveBall() {
-        this.acc = this.acc.unitVector().multiply(this.acceleration)
-        this.vel = this.vel.add(this.acc)
-        this.vel = this.vel.multiply(1 - friction)
-        this.pos = this.pos.add(this.vel)
+        this.acc = this.acc.unitVector().multiply(this.acceleration);
+        this.vel = this.vel.add(this.acc);
+        this.vel = this.vel.multiply(1 - friction);
+        this.pos = this.pos.add(this.vel);
+    }
+}
+
+class Wall {
+    constructor(startVector, endVector) {
+        this.start = startVector;
+        this.end = this.endVector;
+        walls.push(this);
+    }
+
+    drawWall() {
+        ctx.beginPath();
+        ctx.moveTo(this.start.x, this.start.y);
+        this.lineTo(this.end.x, this.end.y);
+        ctx.strokeStyle = "black";
+        ctx.stroke();
     }
 }
 
@@ -164,6 +183,10 @@ function round(number, precision) {
     return Math.round(number * factor) / factor;
 }
 
+function randInt(min, max) {
+    return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
 function detectCollision(b1, b2) {
     if (b1.radius + b2.radius >= b2.pos.subtract(b1.pos).magnitude()) {
         return true;
@@ -174,27 +197,30 @@ function detectCollision(b1, b2) {
 
 function penetrationResolution(b1, b2) {
     let distance = b1.pos.subtract(b2.pos);
-    let penetrationDepth = b1.radius + b2.radius - distance.magnitude()
-    let penetrationResolution = distance.unitVector().multiply(penetrationDepth / 2)
-    b1.pos = b1.pos.add(penetrationResolution);
-    b2.pos = b2.pos.add(penetrationResolution.multiply(-1))
+    let penetrationDepth = b1.radius + b2.radius - distance.magnitude();
+    let penetrationResolution = distance.unitVector().multiply(penetrationDepth / (b1.inverseMass + b2.inverseMass));
+    b1.pos = b1.pos.add(penetrationResolution.multiply(b1.inverseMass));
+    b2.pos = b2.pos.add(penetrationResolution.multiply(-b2.inverseMass));
 }
 
 function collisionResolution(b1, b2) {
-    let collisionNormal = b1.pos.subtract(b2.pos).unitVector()
-    let relativeVelocity = b1.vel.subtract(b2.vel)
-    let separationVelocity = Vector.dot(relativeVelocity, collisionNormal)
-    let newSeparationVelocity = -separationVelocity;
-    let separationVelocityVector = collisionNormal.multiply(newSeparationVelocity)
+    let collisionNormal = b1.pos.subtract(b2.pos).unitVector();
+    let relativeVelocity = b1.vel.subtract(b2.vel);
+    let separationVelocity = Vector.dot(relativeVelocity, collisionNormal);
+    let newSeparationVelocity = -separationVelocity * Math.min(b1.elasticity, b2.elasticity);
 
-    b1.vel = b1.vel.add(separationVelocityVector)
-    b2.vel = b2.vel.add(separationVelocityVector.multiply(-1))
+    let velocitySeparationDifference = newSeparationVelocity - separationVelocity;
+    let impulse = velocitySeparationDifference / (b1.inverseMass + b2.inverseMass);
+    let impulseVector = collisionNormal.multiply(impulse);
+
+    b1.vel = b1.vel.add(impulseVector.multiply(b1.inverseMass));
+    b2.vel = b2.vel.add(impulseVector.multiply(-b2.inverseMass));
 }
 
 let distanceVector = new Vector(0, 0)
 
 function mainLoop() {
-    ctx.clearRect(0, 0, canvas.clientWidth, canvas.clientHeight)
+    ctx.clearRect(0, 0, canvas.clientWidth, canvas.clientHeight);
 
     balls.forEach((ball, index) => {
         ball.drawBall();
@@ -204,32 +230,27 @@ function mainLoop() {
 
         for (let i = index + 1; i < balls.length; i++) {
             if (detectCollision(balls[index], balls[i])) {
-                penetrationResolution(balls[index], balls[i])
-                collisionResolution(balls[index], balls[i])
+                penetrationResolution(balls[index], balls[i]);
+                collisionResolution(balls[index], balls[i]);
             }
         }
-        ball.displayVelAcc();
+        ball.displayNote();
         ball.moveBall();        
     });
 
     
-
+    
     // distanceVector = Ball2.pos.subtract(Ball1.pos)
     // ctx.fillText("Distance: " + round(distanceVector.magnitude(), 4), 506, 330)
     requestAnimationFrame(mainLoop);
 }
 
+for (let i = 0; i < 10; i++) {
+    let newBall = new Ball(randInt(100, 500), randInt(50, 400), randInt(20, 50), randInt(0, 10));
+    newBall.elasticity = randInt(0, 10) / 10;
+}
 
-let Ball1 = new Ball(50, 400, 30);
-let Ball2 = new Ball(300, 300, 50);
-let Ball3 = new Ball(400, 400, 40);
-let Ball4 = new Ball(500, 100, 20);
-let Ball5 = new Ball(150, 200, 15);
-let Ball6 = new Ball(250, 40, 50);
-let Ball7 = new Ball(350, 200, 45);
-let Ball8 = new Ball(450, 300, 60);
-let Ball9 = new Ball(550, 350, 35);
-Ball1.player = true;
+balls[0].player = true;
 
 requestAnimationFrame(mainLoop);
 
