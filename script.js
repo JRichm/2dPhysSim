@@ -270,13 +270,6 @@ function mainLoop() {
             keyController(ball);
         }
 
-        for (let i = index + 1; i < balls.length; i++) {
-            if (detectBallCollision(balls[index], balls[i])) {
-                ballPenetrationResolution(balls[index], balls[i]);
-                ballCollisionResolution(balls[index], balls[i]);
-            }
-        }
-
         walls.forEach(wall => {
             if (detectWallCollision(balls[index], wall)) {
                 wallPenetrationResolution(balls[index], wall);
@@ -284,6 +277,12 @@ function mainLoop() {
             }
         })
 
+        for (let i = index + 1; i < balls.length; i++) {
+            if (detectBallCollision(balls[index], balls[i])) {
+                ballPenetrationResolution(balls[index], balls[i]);
+                ballCollisionResolution(balls[index], balls[i]);
+            }
+        }
         ball.displayNote();
         ball.moveBall();        
     });
@@ -297,15 +296,20 @@ function mainLoop() {
     requestAnimationFrame(mainLoop);
 }
 
-// for (let i = 0; i < 10; i++) {
-//     let newBall = new Ball(randInt(100, 500), randInt(50, 400), randInt(20, 50), randInt(0, 10));
-//     newBall.elasticity = randInt(0, 10) / 10;
-// }
+for (let i = 0; i < 10; i++) {
+    let newBall = new Ball(randInt(100, 500), randInt(50, 400), randInt(20, 50), randInt(0, 10));
+    newBall.elasticity = randInt(0, 10) / 10;
+}
 
-let ball1 = new Ball(300, 100, 40, 1);
-let ball2 = new Ball(200, 150, 30, 2)
+// let ball1 = new Ball(300, 100, 40, 1);
+// let ball2 = new Ball(200, 150, 30, 2)
 let wall1 = new Wall(new Vector(200, 200), new Vector(400, 300))
 let wall2 = new Wall(new Vector(350, 450), new Vector(450, 300))
+
+let topBorder    = new Wall(new Vector(0, 0), new Vector(canvas.clientWidth, 0)) 
+let leftBorder   = new Wall(new Vector(0, 0), new Vector(0, canvas.clientHeight))
+let rightBorder  = new Wall(new Vector(canvas.clientWidth, canvas.clientHeight), new Vector(canvas.clientWidth, 0))
+let bottomBorder = new Wall(new Vector(canvas.clientWidth, canvas.clientHeight), new Vector(0, canvas.clientHeight))
 
 balls[0].player = true;
 
