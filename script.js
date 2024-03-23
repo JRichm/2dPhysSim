@@ -103,16 +103,20 @@ class Ball {
 class Wall {
     constructor(startVector, endVector) {
         this.start = startVector;
-        this.end = this.endVector;
+        this.end = endVector;
         walls.push(this);
     }
 
     drawWall() {
         ctx.beginPath();
         ctx.moveTo(this.start.x, this.start.y);
-        this.lineTo(this.end.x, this.end.y);
+        ctx.lineTo(this.end.x, this.end.y);
         ctx.strokeStyle = "black";
         ctx.stroke();
+    }
+
+    wallUnit() {
+        return this.end.subtract(this.start).unitVector();
     }
 }
 
@@ -187,7 +191,23 @@ function randInt(min, max) {
     return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
-function detectCollision(b1, b2) {
+function closestPointBallWall(ball, wall) {
+    let ballToWallStart = wall.start.subtract(ball.pos);
+    if (Vector.dot(wall.wallUnit(), ballToWallStart) > 0) {
+        return wall.start;
+    }
+
+    let wallEndToBall = ball.pos.subtract(wall.end);
+    if (Vector.dot(wall.wallUnit(), wallEndToBall) > 0) {
+        return wall.end;
+    }
+    
+    let closestDistance = Vector.dot(wall.wallUnit(), ballToWallStart);
+    let closestVector = wall.wallUnit().multiply(closestDistance);
+    return wall.start.subtract(closestVector);
+}
+
+function detectBallCollision(b1, b2) {
     if (b1.radius + b2.radius >= b2.pos.subtract(b1.pos).magnitude()) {
         return true;
     } else {
@@ -195,12 +215,26 @@ function detectCollision(b1, b2) {
     }
 }
 
-function penetrationResolution(b1, b2) {
+function detectWallCollision(b, w) {
+    let ballToClosest = closestPointBallWall(b, w).subtract(b.pos);
+    if (ballToClosest.magnitude() <= b.radius) {
+        return true;
+    } else {
+        return false;
+    }
+}
+
+function wallPenetrationResolution(b, w) {
+    let penetrationVector = b.pos.subtract(closestPointBallWall(b, w));
+    b.pos = b.pos.add(penetrationVector.unitVector().multiply(b.radius - penetrationVector.magnitude()));
+}
+
+function ballPenetrationResolution(b1, b2) {
     let distance = b1.pos.subtract(b2.pos);
     let penetrationDepth = b1.radius + b2.radius - distance.magnitude();
-    let penetrationResolution = distance.unitVector().multiply(penetrationDepth / (b1.inverseMass + b2.inverseMass));
-    b1.pos = b1.pos.add(penetrationResolution.multiply(b1.inverseMass));
-    b2.pos = b2.pos.add(penetrationResolution.multiply(-b2.inverseMass));
+    let ballPenetrationResolution = distance.unitVector().multiply(penetrationDepth / (b1.inverseMass + b2.inverseMass));
+    b1.pos = b1.pos.add(ballPenetrationResolution.multiply(b1.inverseMass));
+    b2.pos = b2.pos.add(ballPenetrationResolution.multiply(-b2.inverseMass));
 }
 
 function collisionResolution(b1, b2) {
@@ -229,8 +263,8 @@ function mainLoop() {
         }
 
         for (let i = index + 1; i < balls.length; i++) {
-            if (detectCollision(balls[index], balls[i])) {
-                penetrationResolution(balls[index], balls[i]);
+            if (detectBallCollision(balls[index], balls[i])) {
+                ballPenetrationResolution(balls[index], balls[i]);
                 collisionResolution(balls[index], balls[i]);
             }
         }
@@ -238,17 +272,26 @@ function mainLoop() {
         ball.moveBall();        
     });
 
-    
+    walls.forEach(wall => {
+        wall.drawWall();
+    })
+
+    if (detectWallCollision(ball, wall)) {
+        wallPenetrationResolution(ball, wall);
+    }
     
     // distanceVector = Ball2.pos.subtract(Ball1.pos)
     // ctx.fillText("Distance: " + round(distanceVector.magnitude(), 4), 506, 330)
     requestAnimationFrame(mainLoop);
 }
 
-for (let i = 0; i < 10; i++) {
-    let newBall = new Ball(randInt(100, 500), randInt(50, 400), randInt(20, 50), randInt(0, 10));
-    newBall.elasticity = randInt(0, 10) / 10;
-}
+// for (let i = 0; i < 10; i++) {
+//     let newBall = new Ball(randInt(100, 500), randInt(50, 400), randInt(20, 50), randInt(0, 10));
+//     newBall.elasticity = randInt(0, 10) / 10;
+// }
+
+let ball = new Ball(300, 100, 40, 1);
+let wall = new Wall(new Vector(200, 200), new Vector(400, 300))
 
 balls[0].player = true;
 
