@@ -29,8 +29,32 @@ class Vector {
         return new Vector(this.x * n, this.y * n)
     }
 
+    normal() {
+        return new Vector(-this.y, this.x).unitVector();
+    }
+
+    unitVector() {
+        if (this.magnitude() === 0) {
+            return new Vector(0, 0)
+        } else {
+            return new Vector(this.x / this.magnitude(), this.y / this.magnitude())
+        }
+    }
+
     magnitude() {
         return Math.sqrt(this.x**2 + this.y**2);
+    }
+
+    static dot(v1, v2) {
+        return v1.x * v2.x + v1.y * v2.y
+    }
+
+    drawVector(startX, startY, n, color) {
+        ctx.beginPath();
+        ctx.moveTo(startX, startY);
+        ctx.lineTo(startX + this.x * n, startY + this.y * n);
+        ctx.strokeStyle = color;
+        ctx.stroke();
     }
 }
 
@@ -55,17 +79,21 @@ class Ball {
     }
 
     displayVelAcc() {
-        ctx.beginPath();
-        ctx.moveTo(this.pos.x, this.pos.y);
-        ctx.lineTo(this.pos.x + this.acc.x * 100, this.pos.y + this.acc.y * 100);
-        ctx.strokeStyle = 'green';
-        ctx.stroke();
+        this.vel.drawVector(550, 400, 10, "green");
+        this.acc.unitVector().drawVector(550, 400, 50, "blue");
+        this.acc.normal().drawVector(550, 400, 50, "red");
 
         ctx.beginPath();
-        ctx.moveTo(this.pos.x, this.pos.y);
-        ctx.lineTo(this.pos.x + this.vel.x * 10, this.pos.y + this.vel.y * 10);
-        ctx.strokeStyle = 'blue';
+        ctx.arc(550, 400, 50, 0, 2 * Math.PI);
+        ctx.strokeStyle = "black";
         ctx.stroke();
+    }
+
+    moveBall() {
+        this.acc = this.acc.unitVector().multiply(this.acceleration)
+        this.vel = this.vel.add(this.acc)
+        this.vel = this.vel.multiply(1 - friction)
+        this.pos = this.pos.add(this.vel)
     }
 }
 
@@ -121,10 +149,6 @@ function keyController(ball) {
         ball.acc.x = 0;
     }
 
-    ball.vel = ball.vel.add(ball.acc)
-    ball.vel = ball.vel.multiply(1 - friction)
-    ball.pos = ball.pos.add(ball.vel)
-
     // ball.vel.x += ball.acc.x;
     // ball.vel.y += ball.acc.y;
 
@@ -135,25 +159,76 @@ function keyController(ball) {
     // ball.pos.y += ball.vel.y;
 }
 
+function round(number, precision) {
+    let factor = 10 ** precision;
+    return Math.round(number * factor) / factor;
+}
 
+function detectCollision(b1, b2) {
+    if (b1.radius + b2.radius >= b2.pos.subtract(b1.pos).magnitude()) {
+        return true;
+    } else {
+        return false;
+    }
+}
 
+function penetrationResolution(b1, b2) {
+    let distance = b1.pos.subtract(b2.pos);
+    let penetrationDepth = b1.radius + b2.radius - distance.magnitude()
+    let penetrationResolution = distance.unitVector().multiply(penetrationDepth / 2)
+    b1.pos = b1.pos.add(penetrationResolution);
+    b2.pos = b2.pos.add(penetrationResolution.multiply(-1))
+}
+
+function collisionResolution(b1, b2) {
+    let collisionNormal = b1.pos.subtract(b2.pos).unitVector()
+    let relativeVelocity = b1.vel.subtract(b2.vel)
+    let separationVelocity = Vector.dot(relativeVelocity, collisionNormal)
+    let newSeparationVelocity = -separationVelocity;
+    let separationVelocityVector = collisionNormal.multiply(newSeparationVelocity)
+
+    b1.vel = b1.vel.add(separationVelocityVector)
+    b2.vel = b2.vel.add(separationVelocityVector.multiply(-1))
+}
+
+let distanceVector = new Vector(0, 0)
 
 function mainLoop() {
     ctx.clearRect(0, 0, canvas.clientWidth, canvas.clientHeight)
 
-    balls.forEach(ball => {
+    balls.forEach((ball, index) => {
         ball.drawBall();
-        ball.displayVelAcc();
         if (ball.player) {
             keyController(ball);
         }
-    })
 
+        for (let i = index + 1; i < balls.length; i++) {
+            if (detectCollision(balls[index], balls[i])) {
+                penetrationResolution(balls[index], balls[i])
+                collisionResolution(balls[index], balls[i])
+            }
+        }
+        ball.displayVelAcc();
+        ball.moveBall();        
+    });
+
+    
+
+    // distanceVector = Ball2.pos.subtract(Ball1.pos)
+    // ctx.fillText("Distance: " + round(distanceVector.magnitude(), 4), 506, 330)
     requestAnimationFrame(mainLoop);
 }
 
 
-let Ball1 = new Ball(200, 200, 30);
+let Ball1 = new Ball(50, 400, 30);
+let Ball2 = new Ball(300, 300, 50);
+let Ball3 = new Ball(400, 400, 40);
+let Ball4 = new Ball(500, 100, 20);
+let Ball5 = new Ball(150, 200, 15);
+let Ball6 = new Ball(250, 40, 50);
+let Ball7 = new Ball(350, 200, 45);
+let Ball8 = new Ball(450, 300, 60);
+let Ball9 = new Ball(550, 350, 35);
 Ball1.player = true;
 
 requestAnimationFrame(mainLoop);
